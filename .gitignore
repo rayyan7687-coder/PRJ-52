@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+**/node_modules/
+frontend-web/node_modules/
+.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs
+dist/
+**/dist/
+build/
+*.egg-info/
+
+# Local data & environment
+*.db
+*.sqlite
+*.sqlite3
+.env
+.DS_Store
