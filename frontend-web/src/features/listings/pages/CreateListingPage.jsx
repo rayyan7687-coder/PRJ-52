@@ -61,12 +61,18 @@ export const CreateListingPage = () => {
     condition: 'GOOD',
     grade: 'B',
     price: '',
-    is_negotiable: true,
+    is_negotiable: false,
     latitude: 12.9716,
     longitude: 77.5946,
     location_text: 'Whitefield, Bangalore, Karnataka',
     images: []
   });
+
+  // Predictive typing location suggestions
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const autocompleteServiceRef = useRef(null);
+  const geocoderRef = useRef(null);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -128,14 +134,55 @@ export const CreateListingPage = () => {
     }));
   };
 
-  // Address Geocoding and Location Selection
-  const handleAddressAutofill = async () => {
-    if (!formData.location_text.trim()) return;
-    setGeocodingMsg('Locating site address on Google Maps...');
+  // Predictive address typing handler
+  const handleLocationInputChange = async (e) => {
+    const val = e.target.value;
+    setFormData(prev => ({ ...prev, location_text: val }));
+
+    if (!val.trim() || val.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
     try {
       const maps = await loadGoogleMaps();
-      const geocoder = new maps.Geocoder();
-      geocoder.geocode({ address: formData.location_text }, (results, status) => {
+      if (!autocompleteServiceRef.current && maps.places) {
+        autocompleteServiceRef.current = new maps.places.AutocompleteService();
+      }
+
+      if (autocompleteServiceRef.current) {
+        autocompleteServiceRef.current.getPlacePredictions(
+          { input: val },
+          (predictions, status) => {
+            if (status === maps.places.PlacesServiceStatus.OK && predictions) {
+              setAddressSuggestions(predictions);
+              setShowSuggestions(true);
+            } else {
+              setAddressSuggestions([]);
+              setShowSuggestions(false);
+            }
+          }
+        );
+      }
+    } catch (err) {
+      console.warn('Autocomplete service error:', err);
+    }
+  };
+
+  const handleSelectSuggestion = async (suggestion) => {
+    const selectedAddress = suggestion.description;
+    setFormData(prev => ({ ...prev, location_text: selectedAddress }));
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+    setGeocodingMsg('Geocoding selected address...');
+
+    try {
+      const maps = await loadGoogleMaps();
+      if (!geocoderRef.current) {
+        geocoderRef.current = new maps.Geocoder();
+      }
+      geocoderRef.current.geocode({ address: selectedAddress }, (results, status) => {
         if (status === 'OK' && results && results[0]) {
           const loc = results[0].geometry.location;
           setFormData(prev => ({
@@ -144,13 +191,13 @@ export const CreateListingPage = () => {
             longitude: loc.lng(),
             location_text: results[0].formatted_address
           }));
-          setGeocodingMsg('Address located and map pinned!');
+          setGeocodingMsg('Address selected and map pinned!');
         } else {
-          setGeocodingMsg('Address not found automatically. Click on the map below to pinpoint site.');
+          setGeocodingMsg('Pin location on map manually if needed.');
         }
       });
     } catch (err) {
-      setGeocodingMsg('Geocoding service unavailable. Click on the map below to pinpoint site.');
+      setGeocodingMsg('Location updated. Pin on map to verify.');
     }
   };
 
@@ -241,7 +288,9 @@ export const CreateListingPage = () => {
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300">Listing Title</label>
+              <label className="block text-sm font-medium text-slate-300">
+                Listing Title <span className="text-red-400">*</span>
+              </label>
               <input
                 type="text"
                 name="title"
@@ -286,12 +335,16 @@ export const CreateListingPage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300">Quantity</label>
+                <label className="block text-sm font-medium text-slate-300">
+                  Quantity <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="number"
                   name="quantity"
                   required
-                  placeholder="1500"
+                  min="0.01"
+                  step="any"
+                  placeholder="e.g. 1500"
                   value={formData.quantity}
                   onChange={handleChange}
                   className="mt-1 block w-full bg-slate-800 border border-slate-700 rounded-md py-2.5 px-3 text-white focus:ring-emerald-500"
@@ -299,7 +352,9 @@ export const CreateListingPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300">Unit</label>
+                <label className="block text-sm font-medium text-slate-300">
+                  Unit <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   name="unit"
@@ -312,12 +367,16 @@ export const CreateListingPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300">Asking Price (₹)</label>
+                <label className="block text-sm font-medium text-slate-300">
+                  Asking Price (₹) <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="number"
                   name="price"
                   required
-                  placeholder="38"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 38"
                   value={formData.price}
                   onChange={handleChange}
                   className="mt-1 block w-full bg-slate-800 border border-slate-700 rounded-md py-2.5 px-3 text-white focus:ring-emerald-500"
@@ -438,28 +497,42 @@ export const CreateListingPage = () => {
               )}
             </div>
 
-            {/* Requirement 4: Site Location & Address Autofill */}
+            {/* Predictive Typing Location */}
             <div className="pt-6 border-t border-slate-800 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300">Site Pickup Address</label>
-                <div className="mt-1 flex gap-2">
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Site Pickup Address (Type for auto-suggestions)
+                </label>
+                <div className="relative">
                   <input
                     type="text"
                     name="location_text"
-                    placeholder="Enter site address (e.g. Whitefield, Bangalore)"
+                    required
+                    placeholder="Start typing site address (e.g., Whitefield, Bangalore)..."
                     value={formData.location_text}
-                    onChange={handleChange}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-md py-2.5 px-3 text-white focus:ring-emerald-500 text-sm"
+                    onChange={handleLocationInputChange}
+                    onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-md py-2.5 pl-3 pr-9 text-white focus:ring-emerald-500 text-sm"
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddressAutofill}
-                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2.5 rounded-md text-xs font-semibold flex items-center space-x-1 shrink-0"
-                  >
-                    <Search className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Autofill Address</span>
-                  </button>
+                  <Search className="absolute right-3 top-3 h-4 w-4 text-slate-400" />
                 </div>
+
+                {/* Predictive Auto-Suggest Dropdown */}
+                {showSuggestions && addressSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto divide-y divide-slate-800">
+                    {addressSuggestions.map((item) => (
+                      <button
+                        key={item.place_id}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(item)}
+                        className="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
+                      >
+                        <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">{item.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -519,7 +592,7 @@ export const CreateListingPage = () => {
                 </span>
               </div>
 
-              <p className="text-slate-300 text-sm">{formData.quantity} {formData.unit} available • Negotiable: {formData.is_negotiable ? 'Yes' : 'No'}</p>
+              <p className="text-slate-300 text-sm">{formData.quantity} {formData.unit} available</p>
               <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{formData.description}</p>
               <p className="text-slate-400 text-xs pt-3 border-t border-slate-900">
                 Site Address: <strong className="text-slate-200">{formData.location_text}</strong>

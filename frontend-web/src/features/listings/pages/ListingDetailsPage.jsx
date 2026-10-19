@@ -174,7 +174,7 @@ export const ListingDetailsPage = () => {
             <h1 className="text-3xl font-extrabold text-white">{listing.title}</h1>
             <p className="text-slate-300 whitespace-pre-line leading-relaxed">{listing.description}</p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-slate-800">
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-800">
               <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
                 <span className="text-xs text-slate-400 block">Condition</span>
                 <span className="text-sm font-bold text-emerald-400">{listing.condition}</span>
@@ -186,10 +186,6 @@ export const ListingDetailsPage = () => {
               <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
                 <span className="text-xs text-slate-400 block">Quantity</span>
                 <span className="text-sm font-bold text-white">{listing.quantity} {listing.unit}</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                <span className="text-xs text-slate-400 block">Negotiable</span>
-                <span className="text-sm font-bold text-white">{listing.is_negotiable ? 'Yes' : 'No'}</span>
               </div>
             </div>
           </div>

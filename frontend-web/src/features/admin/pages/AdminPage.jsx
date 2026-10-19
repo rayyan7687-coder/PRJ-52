@@ -2,29 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../../services/api';
 import {
   Shield, UserX, UserCheck, AlertTriangle, EyeOff, CheckCircle2,
-  Users, Package, AlertCircle, FileText, Filter, Check, X, Search
+  Users, Package, AlertCircle, FileText, Filter, Check, X, Search,
+  TrendingUp, BarChart3, PieChart, ShoppingBag, DollarSign
 } from 'lucide-react';
 
 export const AdminPage = () => {
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [listings, setListings] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('cases'); // 'cases', 'users', 'listings'
+  const [activeTab, setActiveTab] = useState('cases'); // 'cases', 'users', 'listings', 'analytics'
   const [caseFilter, setCaseFilter] = useState('ALL'); // 'ALL', 'PENDING', 'RESOLVED'
   const [userSearch, setUserSearch] = useState('');
 
   const fetchAdminData = async () => {
     try {
-      const [uData, rData, lData] = await Promise.all([
+      const [uData, rData, lData, sData] = await Promise.all([
         apiFetch('/admin/users'),
         apiFetch('/admin/reports'),
-        apiFetch('/listings?status=ACTIVE')
+        apiFetch('/admin/listings'),
+        apiFetch('/admin/stats')
       ]);
       setUsers(uData);
       setReports(rData);
       setListings(lData);
+      setStats(sData);
     } catch (err) {
       console.error('Error fetching admin moderation data:', err);
     } finally {
@@ -98,22 +102,28 @@ export const AdminPage = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 p-1.5 rounded-lg text-xs font-semibold">
+        <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 p-1.5 rounded-lg text-xs font-semibold flex-wrap gap-1">
           <button
             onClick={() => setActiveTab('cases')}
-            className={`px-4 py-2 rounded-md transition ${activeTab === 'cases' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3.5 py-2 rounded-md transition ${activeTab === 'cases' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
           >
             Fraud Cases ({pendingCases.length} Pending)
           </button>
           <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-3.5 py-2 rounded-md transition ${activeTab === 'analytics' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+          >
+            Sales & Analytics Graphs
+          </button>
+          <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-md transition ${activeTab === 'users' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3.5 py-2 rounded-md transition ${activeTab === 'users' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
           >
             User Accounts ({users.length})
           </button>
           <button
             onClick={() => setActiveTab('listings')}
-            className={`px-4 py-2 rounded-md transition ${activeTab === 'listings' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3.5 py-2 rounded-md transition ${activeTab === 'listings' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
           >
             Listings Oversight ({listings.length})
           </button>
@@ -121,7 +131,7 @@ export const AdminPage = () => {
       </div>
 
       {/* Overview Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
             <span>Pending Cases</span>
@@ -140,18 +150,26 @@ export const AdminPage = () => {
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Blocked Accounts</span>
-            <UserX className="h-4 w-4 text-red-400" />
+            <span>Active Listings</span>
+            <Package className="h-4 w-4 text-emerald-400" />
           </div>
-          <span className="text-3xl font-black text-red-400">{blockedUsersCount}</span>
+          <span className="text-3xl font-black text-emerald-400">{stats ? stats.active_listings : listings.filter(l => l.status === 'ACTIVE').length}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Active Listings</span>
-            <Package className="h-4 w-4 text-emerald-400" />
+            <span>Marketplace Sales</span>
+            <ShoppingBag className="h-4 w-4 text-sky-400" />
           </div>
-          <span className="text-3xl font-black text-emerald-400">{listings.length}</span>
+          <span className="text-3xl font-black text-sky-400">{stats ? stats.completed_sales_count : 0}</span>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
+            <span>Sales Volume</span>
+            <DollarSign className="h-4 w-4 text-emerald-400" />
+          </div>
+          <span className="text-2xl font-black text-emerald-400">₹{stats ? stats.completed_sales_volume.toLocaleString() : 0}</span>
         </div>
       </div>
 
@@ -273,6 +291,175 @@ export const AdminPage = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB: ANALYTICS & MARKETPLACE STATISTICS GRAPH */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6">
+          {/* Marketplace Sales Overview & Visual Graph */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                    <BarChart3 className="h-5 w-5 text-emerald-400" />
+                    <span>Marketplace Sales Statistics</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">Breakdown of active listings, reserved deals, and completed sales.</p>
+                </div>
+                <span className="text-xs bg-emerald-950 text-emerald-300 border border-emerald-800 px-2.5 py-1 rounded font-bold">
+                  Total Volume: ₹{stats ? stats.completed_sales_volume.toLocaleString() : 0}
+                </span>
+              </div>
+
+              {/* Visual Bar Graph for Sales & Listings Status */}
+              <div className="space-y-4 pt-2">
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-emerald-400">Active Listings Available</span>
+                    <span className="text-white">{stats ? stats.active_listings : 0}</span>
+                  </div>
+                  <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, ((stats?.active_listings || 0) / Math.max(1, stats?.total_listings || 1)) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-amber-400">Reserved Transactions in Negotiation</span>
+                    <span className="text-white">{stats ? stats.reserved_listings : 0}</span>
+                  </div>
+                  <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, ((stats?.reserved_listings || 0) / Math.max(1, stats?.total_listings || 1)) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-sky-400">Completed Sales Executed</span>
+                    <span className="text-white">{stats ? stats.completed_sales_count : 0}</span>
+                  </div>
+                  <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="bg-sky-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, ((stats?.completed_sales_count || 0) / Math.max(1, stats?.total_listings || 1)) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Summary Grid */}
+              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-800 text-center">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Items</span>
+                  <span className="text-xl font-black text-white">{stats ? stats.total_listings : 0}</span>
+                </div>
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Successful Deals</span>
+                  <span className="text-xl font-black text-sky-400">{stats ? stats.completed_sales_count : 0}</span>
+                </div>
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Pending Inquiries</span>
+                  <span className="text-xl font-black text-amber-400">{stats ? stats.pending_transactions_count : 0}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Viewers vs Buyers / Sellers Distribution Graph */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-sky-400" />
+                    <span>Viewers vs Actual Buyers / Sellers Ratio</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">Comparison of platform browsers (Buyers/Viewers) to material suppliers and contractors.</p>
+                </div>
+              </div>
+
+              {/* SVG / Visual Role Comparison Bar Chart */}
+              <div className="space-y-4 pt-2">
+                {stats && stats.users_by_role && (
+                  <>
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold mb-1.5">
+                        <span className="text-sky-400">Buyers & Material Viewers</span>
+                        <span className="text-white">{stats.users_by_role['BUYER'] || 0} accounts</span>
+                      </div>
+                      <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden border border-slate-800">
+                        <div
+                          className="bg-sky-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, (((stats.users_by_role['BUYER'] || 0) / Math.max(1, stats.total_users)) * 100))}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold mb-1.5">
+                        <span className="text-emerald-400">Material Sellers</span>
+                        <span className="text-white">{stats.users_by_role['SELLER'] || 0} accounts</span>
+                      </div>
+                      <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden border border-slate-800">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, (((stats.users_by_role['SELLER'] || 0) / Math.max(1, stats.total_users)) * 100))}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold mb-1.5">
+                        <span className="text-amber-400">Contractors & Builders</span>
+                        <span className="text-white">{stats.users_by_role['CONTRACTOR_BUILDER'] || 0} accounts</span>
+                      </div>
+                      <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden border border-slate-800">
+                        <div
+                          className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, (((stats.users_by_role['CONTRACTOR_BUILDER'] || 0) / Math.max(1, stats.total_users)) * 100))}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold mb-1.5">
+                        <span className="text-purple-400">Recyclers & Processors</span>
+                        <span className="text-white">{stats.users_by_role['RECYCLER'] || 0} accounts</span>
+                      </div>
+                      <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden border border-slate-800">
+                        <div
+                          className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, (((stats.users_by_role['RECYCLER'] || 0) / Math.max(1, stats.total_users)) * 100))}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Conversion Ratio Metrics */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-slate-400 block font-semibold">Active Buyers / Viewers Ratio</span>
+                  <span className="text-base font-extrabold text-sky-400">
+                    {stats ? Math.round(((stats.users_by_role['BUYER'] || 0) / Math.max(1, stats.total_users)) * 100) : 0}% of Userbase
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 block font-semibold">Sellers / Suppliers Ratio</span>
+                  <span className="text-base font-extrabold text-emerald-400">
+                    {stats ? Math.round((((stats.users_by_role['SELLER'] || 0) + (stats.users_by_role['CONTRACTOR_BUILDER'] || 0)) / Math.max(1, stats.total_users)) * 100) : 0}% of Userbase
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

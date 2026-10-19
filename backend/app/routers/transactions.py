@@ -155,6 +155,47 @@ def admin_update_report(
     db.commit()
     return {"message": "Report status updated", "status": report.status}
 
+@router.get("/admin/listings", response_model=List[ListingResponse])
+def admin_get_listings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.ADMIN]))
+):
+    return db.query(Listing).order_by(Listing.created_at.desc()).all()
+
+@router.get("/admin/stats")
+def admin_get_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.ADMIN]))
+):
+    total_users = db.query(User).count()
+    users_by_role = {
+        role.value: db.query(User).filter(User.role == role).count()
+        for role in UserRole
+    }
+
+    total_listings = db.query(Listing).count()
+    active_listings = db.query(Listing).filter(Listing.status == ListingStatus.ACTIVE).count()
+    sold_listings = db.query(Listing).filter(Listing.status == ListingStatus.SOLD).count()
+    reserved_listings = db.query(Listing).filter(Listing.status == ListingStatus.RESERVED).count()
+
+    completed_txs = db.query(Transaction).filter(Transaction.status == TransactionStatus.COMPLETED).all()
+    completed_sales_count = len(completed_txs)
+    completed_sales_volume = sum(tx.agreed_price for tx in completed_txs)
+
+    pending_txs_count = db.query(Transaction).filter(Transaction.status == TransactionStatus.PENDING).count()
+
+    return {
+        "total_users": total_users,
+        "users_by_role": users_by_role,
+        "total_listings": total_listings,
+        "active_listings": active_listings,
+        "sold_listings": sold_listings,
+        "reserved_listings": reserved_listings,
+        "completed_sales_count": completed_sales_count,
+        "completed_sales_volume": completed_sales_volume,
+        "pending_transactions_count": pending_txs_count
+    }
+
 @router.put("/admin/listings/{listing_id}/hide", response_model=ListingResponse)
 def admin_hide_listing(
     listing_id: int,
