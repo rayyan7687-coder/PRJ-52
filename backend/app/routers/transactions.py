@@ -174,25 +174,35 @@ def admin_get_stats(
     }
 
     total_listings = db.query(Listing).count()
-    active_listings = db.query(Listing).filter(Listing.status == ListingStatus.ACTIVE).count()
-    sold_listings = db.query(Listing).filter(Listing.status == ListingStatus.SOLD).count()
-    reserved_listings = db.query(Listing).filter(Listing.status == ListingStatus.RESERVED).count()
+    active_listings_objs = db.query(Listing).filter(Listing.status == ListingStatus.ACTIVE, Listing.is_visible == True).all()
+    active_listings_count = len(active_listings_objs)
 
+    # Active Marketplace Sales: sum of value (price * quantity) of items currently available on website
+    active_marketplace_sales_value = sum((l.price * l.quantity) for l in active_listings_objs)
+
+    sold_listings_objs = db.query(Listing).filter(Listing.status == ListingStatus.SOLD).all()
+    sold_listings_count = len(sold_listings_objs)
+
+    # Active Sales Volume: sum of values of items that are sold (from completed transactions or sold listings)
     completed_txs = db.query(Transaction).filter(Transaction.status == TransactionStatus.COMPLETED).all()
-    completed_sales_count = len(completed_txs)
-    completed_sales_volume = sum(tx.agreed_price for tx in completed_txs)
+    tx_volume = sum(tx.agreed_price for tx in completed_txs)
+    listing_sold_volume = sum((l.price * l.quantity) for l in sold_listings_objs)
+    active_sales_volume = tx_volume if tx_volume > 0 else listing_sold_volume
 
+    reserved_listings = db.query(Listing).filter(Listing.status == ListingStatus.RESERVED).count()
     pending_txs_count = db.query(Transaction).filter(Transaction.status == TransactionStatus.PENDING).count()
 
     return {
         "total_users": total_users,
         "users_by_role": users_by_role,
         "total_listings": total_listings,
-        "active_listings": active_listings,
-        "sold_listings": sold_listings,
+        "active_listings": active_listings_count,
+        "active_marketplace_sales_value": active_marketplace_sales_value,
+        "sold_listings": sold_listings_count,
         "reserved_listings": reserved_listings,
-        "completed_sales_count": completed_sales_count,
-        "completed_sales_volume": completed_sales_volume,
+        "completed_sales_count": sold_listings_count or len(completed_txs),
+        "active_sales_volume": active_sales_volume,
+        "completed_sales_volume": active_sales_volume,
         "pending_transactions_count": pending_txs_count
     }
 
@@ -209,3 +219,30 @@ def admin_hide_listing(
     db.commit()
     db.refresh(listing)
     return listing
+
+@router.put("/admin/listings/{listing_id}/unhide", response_model=ListingResponse)
+def admin_unhide_listing(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.ADMIN]))
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    listing.is_visible = True
+    db.commit()
+    db.refresh(listing)
+    return listing
+
+@router.delete("/admin/listings/{listing_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_listing(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.ADMIN]))
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    db.delete(listing)
+    db.commit()
+    return None

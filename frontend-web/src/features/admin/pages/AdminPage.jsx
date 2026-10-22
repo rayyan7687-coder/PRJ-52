@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../../services/api';
 import {
-  Shield, UserX, UserCheck, AlertTriangle, EyeOff, CheckCircle2,
+  Shield, UserX, UserCheck, AlertTriangle, EyeOff, Eye, CheckCircle2, Trash2,
   Users, Package, AlertCircle, FileText, Filter, Check, X, Search,
   TrendingUp, BarChart3, PieChart, ShoppingBag, DollarSign
 } from 'lucide-react';
@@ -51,11 +51,24 @@ export const AdminPage = () => {
     }
   };
 
-  const handleHideListing = async (listingId) => {
+  const handleToggleHideListing = async (listingId, currentIsVisible) => {
     if (!listingId) return;
+    const action = currentIsVisible ? 'hide' : 'unhide';
     try {
-      await apiFetch(`/admin/listings/${listingId}/hide`, { method: 'PUT' });
-      alert(`Listing #${listingId} hidden from marketplace.`);
+      await apiFetch(`/admin/listings/${listingId}/${action}`, { method: 'PUT' });
+      alert(`Listing #${listingId} ${currentIsVisible ? 'temporarily hidden' : 'restored to marketplace'}.`);
+      fetchAdminData();
+    } catch (err) {
+      alert(err.message || 'Action failed');
+    }
+  };
+
+  const handleDeleteListing = async (listingId) => {
+    if (!listingId) return;
+    if (!window.confirm(`Are you sure you want to permanently delete Listing #${listingId}? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/admin/listings/${listingId}/delete`, { method: 'DELETE' });
+      alert(`Listing #${listingId} permanently deleted.`);
       fetchAdminData();
     } catch (err) {
       alert(err.message || 'Action failed');
@@ -134,42 +147,42 @@ export const AdminPage = () => {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Pending Cases</span>
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <span>Active Listings</span>
+            <Package className="h-4 w-4 text-emerald-400" />
           </div>
-          <span className="text-3xl font-black text-amber-400">{pendingCases.length}</span>
+          <span className="text-3xl font-black text-emerald-400">{stats ? stats.active_listings : listings.filter(l => l.status === 'ACTIVE' && l.is_visible).length}</span>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
+            <span>Active Marketplace Sales Value</span>
+            <ShoppingBag className="h-4 w-4 text-emerald-400" />
+          </div>
+          <span className="text-2xl font-black text-emerald-400">₹{stats ? stats.active_marketplace_sales_value.toLocaleString() : 0}</span>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
+            <span>Active Sales Volume (Sold)</span>
+            <DollarSign className="h-4 w-4 text-sky-400" />
+          </div>
+          <span className="text-2xl font-black text-sky-400">₹{stats ? stats.active_sales_volume.toLocaleString() : 0}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
             <span>Total Accounts</span>
-            <Users className="h-4 w-4 text-emerald-400" />
+            <Users className="h-4 w-4 text-amber-400" />
           </div>
           <span className="text-3xl font-black text-white">{users.length}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Active Listings</span>
-            <Package className="h-4 w-4 text-emerald-400" />
+            <span>Pending Cases</span>
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
           </div>
-          <span className="text-3xl font-black text-emerald-400">{stats ? stats.active_listings : listings.filter(l => l.status === 'ACTIVE').length}</span>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Marketplace Sales</span>
-            <ShoppingBag className="h-4 w-4 text-sky-400" />
-          </div>
-          <span className="text-3xl font-black text-sky-400">{stats ? stats.completed_sales_count : 0}</span>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-1 shadow-md">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase">
-            <span>Sales Volume</span>
-            <DollarSign className="h-4 w-4 text-emerald-400" />
-          </div>
-          <span className="text-2xl font-black text-emerald-400">₹{stats ? stats.completed_sales_volume.toLocaleString() : 0}</span>
+          <span className="text-3xl font-black text-amber-400">{pendingCases.length}</span>
         </div>
       </div>
 
@@ -531,8 +544,9 @@ export const AdminPage = () => {
       {/* TAB 3: LISTINGS OVERSIGHT */}
       {activeTab === 'listings' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl space-y-4">
-          <div className="px-6 py-4 bg-slate-950 border-b border-slate-800">
-            <h2 className="text-lg font-bold text-white">Active Material Listings ({listings.length})</h2>
+          <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+            <h2 className="text-lg font-bold text-white">All Marketplace Listings ({listings.length})</h2>
+            <p className="text-xs text-slate-400">Manage visibility or perform permanent deletion.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
@@ -540,25 +554,45 @@ export const AdminPage = () => {
               <div key={item.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
-                    <span className="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-bold">
-                      {item.material_type}
+                    <span className={`text-xs px-2 py-0.5 rounded font-bold border ${
+                      item.is_visible
+                        ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                        : 'bg-red-950 text-red-400 border-red-800'
+                    }`}>
+                      {item.is_visible ? 'VISIBLE' : 'HIDDEN'} • {item.status}
                     </span>
                     <span className="text-xs text-slate-500 font-mono">ID #{item.id}</span>
                   </div>
                   <h3 className="font-bold text-white text-base">{item.title}</h3>
-                  <p className="text-emerald-400 font-bold text-sm">₹{item.price} / {item.unit}</p>
+                  <p className="text-emerald-400 font-bold text-sm">₹{item.price} / {item.unit} ({item.quantity} {item.unit})</p>
                   <p className="text-slate-400 text-xs line-clamp-2">{item.description}</p>
                 </div>
 
-                <div className="pt-3 border-t border-slate-900 flex justify-between items-center">
-                  <span className="text-xs text-slate-500">Seller ID: #{item.seller_id}</span>
-                  <button
-                    onClick={() => handleHideListing(item.id)}
-                    className="bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 text-xs font-bold px-3 py-1.5 rounded flex items-center space-x-1"
-                  >
-                    <EyeOff className="h-3.5 w-3.5" />
-                    <span>Hide Listing</span>
-                  </button>
+                <div className="pt-3 border-t border-slate-900 flex justify-between items-center gap-2">
+                  <span className="text-xs text-slate-500">Seller #{item.seller_id}</span>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleToggleHideListing(item.id, item.is_visible)}
+                      className={`text-xs font-bold px-2.5 py-1.5 rounded flex items-center space-x-1 ${
+                        item.is_visible
+                          ? 'bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800'
+                          : 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800'
+                      }`}
+                      title={item.is_visible ? 'Temporary Hide' : 'Unhide'}
+                    >
+                      {item.is_visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      <span>{item.is_visible ? 'Temp Hide' : 'Unhide'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteListing(item.id)}
+                      className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold px-2.5 py-1.5 rounded flex items-center space-x-1"
+                      title="Permanent Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
